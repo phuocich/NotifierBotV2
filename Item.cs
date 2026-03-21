@@ -2,11 +2,11 @@
 {
     public class State
     {
-        public int LastVerse { get; set; } = 0;
+        public int LastItem { get; set; } = 0;
         public string LastDate { get; set; } = string.Empty;
     }
 
-    public class Verse
+    public class Item
     {
         public int Number { get; set; }
         public string Chapter { get; set; } = string.Empty;

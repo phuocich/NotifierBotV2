@@ -17,7 +17,7 @@ if (!File.Exists(dataPath))
 
 // load items
 var json = await File.ReadAllTextAsync(dataPath);
-var items = JsonSerializer.Deserialize<List<Verse>>(
+var items = JsonSerializer.Deserialize<List<Item>>(
     json,
     new JsonSerializerOptions
     {
@@ -48,11 +48,11 @@ var state = JsonSerializer.Deserialize<State>(stateJson,
         PropertyNameCaseInsensitive = true
     }) ?? new State();
 
-Console.WriteLine($"LastItem: {state.LastVerse}");
+Console.WriteLine($"LastItem: {state.LastItem}");
 Console.WriteLine($"LastDate: {state.LastDate}");
 
 // next item
-var nextItem = state.LastVerse + 1;
+var nextItem = state.LastItem + 1;
 if (nextItem > items.Count)
     nextItem = 1;
 
@@ -95,7 +95,7 @@ await telegram.SendAudio(
 Console.WriteLine($"Sent item {nextItem}");
 
 // update state
-state.LastVerse = nextItem;
+state.LastItem = nextItem;
 state.LastDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 await File.WriteAllTextAsync(
     statePath,

@@ -22,7 +22,7 @@ public class AudioService
         }.Build();
     }
 
-    public async Task<MemoryStream> GenerateAsync(Verse item)
+    public async Task<MemoryStream> GenerateAsync(Item item)
     {
         var script = BuildScript(item);
 
@@ -53,7 +53,7 @@ public class AudioService
         return stream;
     }
 
-    private static string BuildScript(Verse item)
+    private static string BuildScript(Item item)
     {
         // Strip [N] prefix from label for cleaner audio
         var label = System.Text.RegularExpressions.Regex
