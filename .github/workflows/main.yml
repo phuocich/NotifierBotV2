@@ -2,8 +2,8 @@ name: Notifier Bot V2
 
 on:
   schedule:
-    - cron: '0 22 * * *'   # 5:00 AM VN
-    - cron: '30 14 * * *'  # 09:30 PM VN
+    - cron: '0 22 * * *'  # 05:00 AM VN
+    - cron: '0 13 * * *'  # 08:00 PM VN
   workflow_dispatch:
 
 permissions:
