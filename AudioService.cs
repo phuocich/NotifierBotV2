@@ -12,14 +12,22 @@ public class AudioService
     {
         var path = Path.Combine(Directory.GetCurrentDirectory(), "key.json");
 
-        var credential = GoogleCredential
-            .FromFile(path)
-            .CreateScoped(TextToSpeechClient.DefaultScopes);
-
-        _client = new TextToSpeechClientBuilder
+        try
         {
-            Credential = credential
-        }.Build();
+            var credential = GoogleCredential
+                .FromFile(path)
+                .CreateScoped(TextToSpeechClient.DefaultScopes);
+
+            _client = new TextToSpeechClientBuilder
+            {
+                Credential = credential
+            }.Build();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[AudioService] Init failed: {ex}");
+            throw;
+        }
     }
 
     public async Task<MemoryStream> GenerateAsync(Item item)
