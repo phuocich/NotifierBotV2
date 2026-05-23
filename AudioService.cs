@@ -1,11 +1,13 @@
 ﻿using Google.Apis.Auth.OAuth2;
 using Google.Cloud.TextToSpeech.V1;
-using NotifierBotV2;
+using System.Text;
 
 namespace NotifierBotV2;
 
 public class AudioService
 {
+    private const int MaxSsmlBytes = 5000;
+
     private readonly TextToSpeechClient _client;
 
     public AudioService()
@@ -33,37 +35,126 @@ public class AudioService
     public async Task<MemoryStream> GenerateAsync(Item item)
     {
         var script = BuildScript(item);
-
-        var input = new SynthesisInput
-        {
-            Ssml = $@"<speak>
-                        Pháp Số {item.Number}
-                        <break time=""500ms""/>
-                        {Escape(Normalize(script))}
-                      </speak>"
-        };
+        var ssmlChunks = SplitSsml(script, item.Number);
 
         var voice = new VoiceSelectionParams
         {
             LanguageCode = "vi-VN",
             Name = "vi-VN-Wavenet-B"
         };
-
         var config = new AudioConfig
         {
             AudioEncoding = AudioEncoding.Mp3
         };
 
-        var response = await _client.SynthesizeSpeechAsync(input, voice, config);
+        var tasks = ssmlChunks.Select(ssml =>
+            _client.SynthesizeSpeechAsync(
+                new SynthesisInput { Ssml = ssml }, voice, config));
 
-        var stream = new MemoryStream(response.AudioContent.ToByteArray());
+        var responses = await Task.WhenAll(tasks);
+        var audioParts = responses.Select(r => r.AudioContent.ToByteArray()).ToList();
+
+        var combined = audioParts.Count == 1
+            ? audioParts[0]
+            : audioParts.SelectMany(b => b).ToArray();
+
+        var stream = new MemoryStream(combined);
         stream.Position = 0;
         return stream;
     }
 
+    private List<string> SplitSsml(string rawScript, int number)
+    {
+        var prefix = $"Pháp Số {number}";
+        var overhead = Encoding.UTF8.GetByteCount(
+            $"<speak>{prefix}<break time=\"500ms\"/></speak>");
+        var maxContentBytes = MaxSsmlBytes - overhead;
+
+        var normalized = Normalize(rawScript);
+        var sentences = System.Text.RegularExpressions.Regex
+            .Split(normalized, @"(?<=\.)\s+")
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .ToList();
+
+        var chunks = new List<string>();
+        var buf = new StringBuilder();
+
+        foreach (var sentence in sentences)
+        {
+            var encoded = Escape(sentence);
+            var sentenceBytes = Encoding.UTF8.GetByteCount(encoded);
+
+            if (sentenceBytes > maxContentBytes)
+            {
+                if (buf.Length > 0)
+                {
+                    chunks.Add(WrapSsml(buf.ToString(), prefix));
+                    buf.Clear();
+                }
+                chunks.AddRange(SplitLongText(encoded, maxContentBytes, prefix));
+            }
+            else
+            {
+                var candidate = buf.Length > 0
+                    ? buf.ToString() + " " + encoded
+                    : encoded;
+                if (Encoding.UTF8.GetByteCount(candidate) > maxContentBytes && buf.Length > 0)
+                {
+                    chunks.Add(WrapSsml(buf.ToString(), prefix));
+                    buf.Clear();
+                    buf.Append(encoded);
+                }
+                else
+                {
+                    if (buf.Length > 0) buf.Append(' ');
+                    buf.Append(encoded);
+                }
+            }
+        }
+
+        if (buf.Length > 0)
+            chunks.Add(WrapSsml(buf.ToString(), prefix));
+
+        return chunks;
+    }
+
+    private static List<string> SplitLongText(string text, int maxBytes, string prefix)
+    {
+        var result = new List<string>();
+        var words = text.Split(' ');
+        var buf = new StringBuilder();
+
+        foreach (var word in words)
+        {
+            var candidate = buf.Length > 0
+                ? buf.ToString() + " " + word
+                : word;
+            if (Encoding.UTF8.GetByteCount(candidate) > maxBytes && buf.Length > 0)
+            {
+                result.Add(WrapSsml(buf.ToString(), prefix));
+                buf.Clear();
+                buf.Append(word);
+            }
+            else
+            {
+                if (buf.Length > 0) buf.Append(' ');
+                buf.Append(word);
+            }
+        }
+
+        if (buf.Length > 0)
+            result.Add(WrapSsml(buf.ToString(), prefix));
+
+        return result;
+    }
+
+    private static string WrapSsml(string escapedText, string prefix)
+    {
+        return $"<speak>{prefix}<break time=\"500ms\"/>{escapedText}</speak>";
+    }
+
     private static string BuildScript(Item item)
     {
-        // Strip [N] prefix from label for cleaner audio
         var label = System.Text.RegularExpressions.Regex
             .Replace(item.Label, @"^\[\d+\]\s*", string.Empty)
             .Trim();

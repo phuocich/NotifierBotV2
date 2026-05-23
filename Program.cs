@@ -83,16 +83,32 @@ var message = sb.ToString();
 var audioService = new AudioService();
 var telegram = new TelegramService();
 
-var audioStream = await audioService.GenerateAsync(item);
+try
+{
+    var audioStream = await audioService.GenerateAsync(item);
 
-await telegram.SendMessage(message);
-await telegram.SendAudio(
-    audioStream,
-    $"{item.Number}_Dhamma.mp3",
-    $"📜 Pháp Số – Mục {item.Number}"
-);
+    try
+    {
+        await telegram.SendMessage(message);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"SendMessage failed: {ex.Message}");
+    }
 
-Console.WriteLine($"Sent item {nextItem}");
+    await telegram.SendAudio(
+        audioStream,
+        $"{item.Number}_Dhamma.mp3",
+        $"📜 Pháp Số – Mục {item.Number}"
+    );
+
+    Console.WriteLine($"Sent item {nextItem}");
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Generate/Audio failed: {ex}");
+    return;
+}
 
 // update state
 state.LastItem = nextItem;
